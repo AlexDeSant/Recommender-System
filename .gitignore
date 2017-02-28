@@ -1,0 +1,341 @@
+
+
+##################################################################################################
+################################# ASSOTIATION RULES ##############################################
+Leemos los datos y creamos las reglas de asociación  para urls y users
+##################################################################################################
+
+# install.packages("plyr")
+# install.packages("data.table")
+# install.packages("arules")
+# install.packages("arulesViz")
+# install.packages("datasets")
+library(plyr)
+library(data.table)
+library(arules)
+library(arulesViz)
+library(datasets)
+setwd("C:/Users/adesantos/Desktop/Assoc Rules")
+urls<-read.table("grafos_jsp.txt" , header = FALSE, fill = TRUE )
+urls<-rename(urls, c( "V1" = "iduser", "V2" = "fecha", "V3" = "hora", "V4" = "url.or" , "V5" = "urls.dest" ))
+urls<-data.table(urls)
+ 
+#head(urls)
+#urlsRules <- urls[,c("iduser", "url.or")] # if it were a data.frame
+urls
+urlsRules <- urls[,.(iduser, url.or)]
+rules <- apriori(urlsRules, parameter = list(supp = 0.001, conf = 0.8))
+inspect(rules[1:7])
+ 
+# lhs                                rhs                  support     confidence lift    
+# 1 {url.or=/jsp/elodopp001100.jsp} => {iduser=00332558800} 0.001139954 0.9827586   63.98424
+# 2 {url.or=/jsp/elopcrp000910.jsp} => {iduser=00174525200} 0.001179953 0.9672131  282.82216
+# 3 {url.or=/jsp/elogfdp000901.jsp} => {iduser=00332558800} 0.001219951 1.0000000   65.10677
+# 4 {url.or=/jsp/elogfdp008200.jsp} => {iduser=00332558800} 0.001779929 1.0000000   65.10677
+# 5 {url.or=/jsp/elotdrp000100.jsp} => {iduser=00340115500} 0.005599776 0.9964413   22.11454
+# 6 {url.or=/jsp/elotdrp000200.jsp} => {iduser=00340115500} 0.005639774 0.9964664   22.11510
+# 7 {url.or=/jsp/elomenp000600.jsp} => {iduser=00340115500} 0.005839766 0.9700997   21.52993
+
+
+
+
+#############################################################################################
+######################### the most likely rules #############################################
+Reordenamos las reglas de asociación en función de la probabilidad (arriba las más probables)
+#############################################################################################
+
+rules<-sort(rules, by="confidence",decreasing=TRUE)
+inspect(rules[1:7])
+# lhs                                rhs                  support     confidence lift    
+# 3 {url.or=/jsp/elogfdp000901.jsp} => {iduser=00332558800} 0.001219951 1.0000000   65.10677
+# 4 {url.or=/jsp/elogfdp008200.jsp} => {iduser=00332558800} 0.001779929 1.0000000   65.10677
+# 6 {url.or=/jsp/elotdrp000200.jsp} => {iduser=00340115500} 0.005639774 0.9964664   22.11510
+# 5 {url.or=/jsp/elotdrp000100.jsp} => {iduser=00340115500} 0.005599776 0.9964413   22.11454
+# 1 {url.or=/jsp/elodopp001100.jsp} => {iduser=00332558800} 0.001139954 0.9827586   63.98424
+# 7 {url.or=/jsp/elomenp000600.jsp} => {iduser=00340115500} 0.005839766 0.9700997   21.52993
+# 2 {url.or=/jsp/elopcrp000910.jsp} => {iduser=00174525200} 0.001179953 0.9672131  282.82216
+ 
+summary(rules)
+ 
+# set of 7 rules
+#
+# rule length distribution (lhs + rhs):sizes
+# 2
+# 7
+#
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+# 2       2       2       2       2       2
+#
+# summary of quality measures:
+#   support          confidence          lift      
+# Min.   :0.00114   Min.   :0.9672   Min.   : 21.53 
+# 1st Qu.:0.00120   1st Qu.:0.9764   1st Qu.: 22.11 
+# Median :0.00178   Median :0.9964   Median : 63.98 
+# Mean   :0.00320   Mean   :0.9876   Mean   : 77.54 
+# 3rd Qu.:0.00562   3rd Qu.:0.9982   3rd Qu.: 65.11 
+# Max.   :0.00584   Max.   :1.0000   Max.   :282.82 
+#
+# mining info:
+#   data ntransactions support confidence
+# urlsRules         50002   0.001        0.8
+
+
+
+#############################################################################################
+###################### Visualizamos las reglas de asociación ################################
+library(arulesViz)
+plot(rules,method="graph",interactive=TRUE,shading=NA)
+
+
+
+
+
+
+ 
+
+#####################################################################################################
+################################## COLLABORATIVE FILTERING ##########################################
+#Crearemos la matriz que agrupa todas las posibles combinaciones de usuarios y urls visitadas por éstos. 
+#En este bloque creamos esta matriz y la llenamos con NA y a continuación, agrupamos por user, las urls visitadas por cada uno.
+ #####################################################################################################
+
+dataUrls <- matrix(NA, nrow= length(unique(urls$iduser)), ncol = length(unique(urls$url.or)), dimnames = list(unique(urls$iduser),unique(urls$url.or)))
+head(urlsRules)
+ 
+urlsRules <- urlsRules[, .(appear= .N), by = .(iduser, url.or)]
+View(urlsRules)
+# dim(urlsRules)
+#[1] 13827     3
+
+
+
+
+
+
+#####################################################################################################
+#Construimos una matriz, que dados los usuarios (filas), expresa en cada casilla, 
+#el número de visitas realizadas en cada url (columnas).
+#Construimos una matriz, que dados los usuarios (filas), expresa en cada casilla,  
+#el número de visitas realizadas en cada url (columnas).
+#####################################################################################################
+ 
+#install.packages("psych")
+#install.packages("R.utils")
+library(psych)
+library(R.utils
+  
+seqUsers <- (unique(urlsRules$iduser)) #735
+seqUrls <- (unique(urlsRules$url.or)) #875
+ 
+nodesAndAppears <- list()
+VecWeight <- list()
+ 
+for (i in seq_along(seqUsers)) {
+  posInSeqUsers<-c()
+  posInSeqUsers<-which(urlsRules$iduser == seqUsers[i])# lista de listas: Cada casilla, las filas de urlsRules, donde está un user (uno a uno)
+  nodesAndAppears[[i]]<-urlsRules[posInSeqUsers, list(url.or,appear)]# tengo los nodos de un usuario con sus repeticiones en urlsRules
+  # me olvido de los users
+  posInSeqUrls <- c()
+  repInSeqUrls <- c()
+  VectBase <- c()
+  for (j in seq_along(nodesAndAppears[[i]]$url.or) ){
+    posInSeqUrls<-append(posInSeqUrls, which(seqUrls==nodesAndAppears[[i]]$url.or[j])) # fila de cada uno de los elementos de nodesAndAppears$url.or en seqUrls                                                                                   # hay que poner j por la naturaleza del which
+    repInSeqUrls<-nodesAndAppears[[i]]$appear # fila de cada uno de los elementos de nodesAndAppears$url.or en seqUrls
+    VectBase<-rep(0,length(seqUrls))
+  }
+  VectBase[posInSeqUrls]<-repInSeqUrls #inserto en VectBase
+  VecWeight[[i]]<-VectBase # genero un vector por usuario
+   
+} # At the end we've got 735 VecWeight, one for each one user, that express the visit number for each usrls
+ 
+ 
+length(VecWeight[[i]]) # the dim of urls comparation
+#[1] 875
+ 
+length(VecWeight) # the dim of all users vectors
+#[1] 735
+  
+  
+#We create the matrix confronting the users to the urls:
+UsersvsUrls <- do.call(rbind, VecWeight)
+dim(UsersvsUrls)
+#[1] 735 875
+# I can rename the matrix:
+colnames(UsersvsUrls) <- seqUrls
+head(UsersvsUrls[,c(1:8)])
+
+
+
+
+
+#####################################################################################################
+#Para esta medida nos olvidamos de los users,  y nos centramos en las columnas urls, cuyo histórico (columnas)
+#expresan el número de visitas de los users dada la url seleccionada. Por tanto, construimos la matriz de similitud,
+#que expresa la medida de similitud entre las distintas urls en función de los users que las han visitado.
+#####################################################################################################
+
+# Create a helper function to calculate the cosine between two vectors (MEDIDA DE COMPARACIÓN ENTRE DOS VECTORES x e y)
+getCosine <- function(x,y)
+{
+  this.cosine <- sum(x*y) / (sqrt(sum(x*x)) * sqrt(sum(y*y)))
+  return(this.cosine)
+}
+   
+ 
+ 
+# Lets fill in those empty spaces with cosine similarities
+# Loop through our vectors VecWeight[[i]], to fullfill our matrix
+matrix.similarity <- matrix(NA, nrow=length(seqUrls),
+                         ncol=length(seqUrls))
+                         #,dimnames=list((seqUrls),(seqUrls)))
+dim(matrix.similarity)
+ 
+for(i in 1:length(seqUrls)) {
+  # Loop through all the VecWeight vectors
+  for(j in 1:length(seqUrls)) {
+    # Fill in placeholder with cosine similarities where VecWeight[[i]] is the entire vector
+    matrix.similarity[i,j] <- getCosine(UsersvsUrls[,i],UsersvsUrls[,j])
+  }
+}
+   
+matrix.similarity[1:15,1:15]
+dim(matrix.similarity)
+#[1] 875 875
+rownames(matrix.similarity) <- seqUrls
+colnames(matrix.similarity) <- seqUrls
+matrix.similarity[1:15,1:15] 
+
+
+
+
+
+
+#####################################################################################################
+#Ahora estamos en condiciones de hacer recomendaciones. 
+#Nos fijaremos en los 10 primeros vecinos(urls) según similitud, dada una url.
+#Ahora estamos en condiciones de hacer recomendaciones. Nos fijaremos en los 10 primeros vecinos(urls) según similitud, dada una url.
+#####################################################################################################
+
+# Get the top 10 neighbours for each
+data.neighbours <- matrix(NA, nrow=length(seqUrls),
+                          ncol=11, dimnames=list(colnames(matrix.similarity)))
+dim(data.neighbours)
+#875  11
+data.neighbours[1:15,1:10]
+ 
+ 
+for(i in 1:length(seqUrls)) # BUCLE A TRAVÉS DE LOS NODOS
+{ # ORDER TO PUT THE MOST SIMILAR IN FIRST PLACE
+  data.neighbours[i,] <- (t(head(n=11,
+  rownames(matrix.similarity[order(matrix.similarity[,i],decreasing=TRUE),]))))
+}
+ 
+data.neighbours[1:5, 1:8]
+# -                      "-"                      "/jsp/elogctp010000.jsp" "/jsp/EloGfiP000400.jsp"
+# /jsp/eloamfp004001.jsp "/jsp/eloamfp004001.jsp" "/jsp/elomtfp010300.jsp" "/jsp/eloamfp001700.jsp"
+# /jsp/eloamfp001800.jsp "/jsp/eloamfp001800.jsp" "/jsp/eloamfp004001.jsp" "/jsp/elomtfp010300.jsp"
+# /jsp/elomtfp003100.jsp "/jsp/elomtfp003100.jsp" "/jsp/eloamfp004001.jsp" "/jsp/elomtfp010300.jsp"
+# /jsp/eloautp001000.jsp "/jsp/eloautp001000.jsp" "/jsp/eloautp000300.jsp" "/jsp/elottup000300.jsp"
+# [,4]                     [,5]                     [,6]                   
+# -                      "/jsp/EloGfiP000010.jsp" "/jsp/elogctp001101.jsp" "/jsp/EloGfiP000100.jsp"
+# /jsp/eloamfp004001.jsp "/jsp/eloamfp001800.jsp" "/jsp/elomtfp003100.jsp" "/jsp/eloftxp004700.jsp"
+# /jsp/eloamfp001800.jsp "/jsp/eloamfp001700.jsp" "/jsp/elomtfp003100.jsp" "/jsp/eloftxp004700.jsp"
+# /jsp/elomtfp003100.jsp "/jsp/eloamfp001700.jsp" "/jsp/eloamfp001800.jsp" "/jsp/eloftxp004700.jsp"
+# /jsp/eloautp001000.jsp "/jsp/elottup000400.jsp" "/jsp/elottup000500.jsp" "/jsp/elotrfp000000.jsp"
+# [,7]                     [,8]                   
+# -                      "/jsp/elogctp600001.jsp" "/jsp/elolgnp600002.jsp"
+# /jsp/eloamfp004001.jsp "/jsp/eloftxp004800.jsp" "/jsp/elocecp000100.jsp"
+# /jsp/eloamfp001800.jsp "/jsp/eloftxp004800.jsp" "/jsp/elocecp000100.jsp"
+# /jsp/elomtfp003100.jsp "/jsp/eloftxp004800.jsp" "/jsp/elocecp000100.jsp"
+# /jsp/eloautp001000.jsp "/jsp/elottup000103.jsp" "/jsp/elotlep000101.jsp"
+ 
+# A los users que visitan el nodo - recomendaríamos: elogctp010000.jsp, EloGfiP000400.jsp ...
+# A los || eloamfp001800.jsp recomendaríamos: eloamfp001700.jsp, eloftxp004700.jsp ...
+
+
+
+
+
+
+
+####################################################################################################
+##################### Recomendaciones Sobre la base de usuarios ####################################
+#########################Creamos la matriz de scoring ##############################################
+####################################################################################################
+ 
+ 
+#permite realizar una función de ayuda para calcular las puntuaciones de
+getScore <- function(history, similarities)
+{
+  x <- sum(history*similarities)/sum(similarities)
+  x
+}
+  
+#head(UsersvsUrls[,c(1:8)])
+  
+holder1 <- matrix(NA, nrow=nrow(UsersvsUrls),
+                 ncol=ncol(UsersvsUrls),
+                 dimnames=list(seqUsers,
+                               seqUrls))
+head(holder1[,c(1:8)])
+# Loop through the users (rows)
+for(i in 1:nrow(holder1))
+{
+  # Loops through the products (columns)
+  for(j in 1:ncol(holder1))
+  {
+    # Get the user's name and th product's name
+    # We do this not to conform with vectors sorted differently
+    user <- rownames(holder1)[i]
+    product <- colnames(holder1)[j]
+     
+    # We do not want to recommend products you have already consumed
+    # If you have already consumed it, we store an empty string
+    if(as.integer(UsersvsUrls[i,j]) != 0)
+    {
+      holder1[i,j]<-""
+    }
+      else {
+       
+      # We first have to get a product's top 10 neighbours sorted by similarity
+      topN<-((head(n=11,
+      (matrix.similarity[order(matrix.similarity[,product],decreasing=TRUE),][,product]))))
+       
+      topN.names <- names(topN)
+      topN.similarities <- as.numeric(topN)
+ 
+      # We then get the user's purchase history for those 10 items
+      topN.purchases<-UsersvsUrls[ ,topN.names]
+       
+       
+      # We then calculate the score for that product (j) and that user (i)
+      holder1[i,j]<-getScore(similarities=topN.similarities,history=topN.userPurchases)
+       
+    } # close else statement
+  } # end product for loop  
+} # end user for loop
+  
+UsersvsUrls.scores <- holder1
+
+
+
+
+
+
+
+
+
+
+####################################################################################################
+############### Hacemos recomendaciones usando la matriz de scoring ################################
+####################################################################################################
+UsersvsUrls.scores <- holder1
+  
+ UsersvsUrls.scores.holder <- matrix(NA, nrow=nrow(UsersvsUrls.scores),
+                                          ncol=100,
+                                          dimnames=list(rownames(UsersvsUrls.scores)))
+for(i in 1:nrow(UsersvsUrls.scores))
+{
+  UsersvsUrls.scores.holder[i,] <- names(head(n=100,(UsersvsUrls.scores[,order(UsersvsUrls.scores[i,],decreasing=TRUE)])[i,]))
+}
+
